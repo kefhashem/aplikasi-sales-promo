@@ -22,6 +22,8 @@
             margin-left: -20px; margin-top: -20px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .readonly-row { background-color: #374151 !important; color: #9ca3af; }
+        .readonly-row input, .readonly-row select, .readonly-row button { pointer-events: none; opacity: 0.7; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -63,7 +65,7 @@
         </main>
     </div>
 
-    <!-- Firebase SDK (Gunakan versi yang kompatibel dengan kode) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -89,13 +91,23 @@
             let activeTab = 'kd10';
             let listeners = {}; 
 
+            const legacyOfflineData = [
+                { id: "KDO1", name: "TOTOK", hadiah: "kaos polos", tipe: "LOYAL" }, { id: "KDO2", name: "Kak Deddy", hadiah: "Jersey fullprint", tipe: "LOYAL" },
+                { id: "KDO3", name: "Arelano", hadiah: "Tas serut", tipe: "BARU" }, { id: "KDO4", name: "Audi", hadiah: "Kaos Polos", tipe: "LOYAL" },
+                { id: "KDO5", name: "Fauzan", hadiah: "Jersey fullprint", tipe: "BARU" }, { id: "KDO6", name: "putri", hadiah: "DTF", tipe: "BARU" },
+                { id: "KDO7", name: "cilya", hadiah: "DTF", tipe: "BARU" }, { id: "KDO8", name: "Arya", hadiah: "Buku tulis", tipe: "BARU" },
+                { id: "KDO9", name: "Laras", hadiah: "Tas serut", tipe: "BARU" }, { id: "KDO10", name: "Dyas", hadiah: "Jersey fullprint", tipe: "LOYAL" },
+                { id: "KDO11", name: "Pradi", hadiah: "buku tulis", tipe: "BARU" }, { id: "KDO12", name: "Pak Mega", hadiah: "Jersey fullprint", tipe: "LOYAL" },
+                { id: "KDO13", name: "BINAR", hadiah: "Jersey fullprint", tipe: "LOYAL" }, { id: "KDO14", name: "joshua", hadiah: "buku tulis", tipe: "BARU" },
+                { id: "KDO15", name: "ken", hadiah: "buku tulis", tipe: "BARU" }, { id: "KDO16", name: "fajar", hadiah: "tas serut", tipe: "BARU" },
+                { id: "KDO17", name: "dwipa", hadiah: "tas serut", tipe: "BARU" }, { id: "KDO18", name: "aditya", hadiah: "tas serut", tipe: "BARU" },
+                { id: "KDO19", name: "jose", hadiah: "DTF", tipe: "BARU" },
+            ];
+
             const tabConfig = {
-                'kd10': { title: 'KD_10', type: 'promo-kd', prefix: 'KD10' },
-                'kd15': { title: 'KD_15', type: 'promo-kd', prefix: 'KD15' },
-                'kd20': { title: 'KD_20', type: 'promo-kd', prefix: 'KD20' },
-                'free': { title: '6 FREE 1', type: 'promo-simple', prefix: 'FR' }, // PERUBAHAN: Tipe diubah
-                'offline': { title: 'OFFLINE', type: 'promo-hadiah', prefix: 'KDO' },
-                'stokBaru': { title: 'STOK HADIAH BARU', type: 'stok' },
+                'kd10': { title: 'KD_10', type: 'promo-kd', prefix: 'KD10' }, 'kd15': { title: 'KD_15', type: 'promo-kd', prefix: 'KD15' },
+                'kd20': { title: 'KD_20', type: 'promo-kd', prefix: 'KD20' }, 'free': { title: '6 FREE 1', type: 'promo-simple', prefix: 'FR' },
+                'offline': { title: 'OFFLINE', type: 'promo-offline', prefix: 'KDO' }, 'stokBaru': { title: 'STOK HADIAH BARU', type: 'stok' },
                 'stokLoyal': { title: 'STOK HADIAH LOYAL', type: 'stok' }
             };
 
@@ -112,7 +124,7 @@
             function showLoader() { tableLoader.classList.remove('hidden'); }
             function hideLoader() { tableLoader.classList.add('hidden'); }
             function formatTimestamp(ts) { return ts ? new Date(ts.seconds * 1000).toLocaleString('id-ID', { hour12: false, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(/\./g, ':') : ''; }
-
+            
             auth.onAuthStateChanged(user => {
                 if (user) {
                     loginPage.classList.add('hidden');
@@ -125,40 +137,24 @@
                     listeners = {};
                 }
             });
-            
+
             function initApp() {
-                tabContainer.innerHTML = Object.keys(tabConfig).map(key => 
-                    `<button data-tab="${key}" class="tab-button py-2 px-4 font-semibold text-gray-400 hover:bg-gray-700 rounded-t-lg">${tabConfig[key].title}</button>`
-                ).join('');
+                tabContainer.innerHTML = Object.keys(tabConfig).map(key => `<button data-tab="${key}" class="tab-button py-2 px-4 font-semibold text-gray-400 hover:bg-gray-700 rounded-t-lg">${tabConfig[key].title}</button>`).join('');
                 tabContainer.querySelector(`[data-tab="${activeTab}"]`).classList.add('active');
-                
                 Object.keys(tabConfig).forEach(tabName => setupRealtimeListener(tabName));
-                render();
             }
 
             function setupRealtimeListener(tabName) {
-                if (listeners[tabName]) listeners[tabName](); 
-
-                const query = db.collection(tabName);
-                
-                listeners[tabName] = query.onSnapshot(snapshot => {
+                if (listeners[tabName]) listeners[tabName]();
+                listeners[tabName] = db.collection(tabName).onSnapshot(snapshot => {
                     let docs = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
-                    
-                    if (tabConfig[tabName] && tabConfig[tabName].type.startsWith('promo')) {
-                        docs.sort((a, b) => {
-                            const numA = parseInt((a.id.match(/\d+$/) || ['0'])[0], 10);
-                            const numB = parseInt((b.id.match(/\d+$/) || ['0'])[0], 10);
-                            return numA - numB;
-                        });
-                    } else if (tabConfig[tabName] && tabConfig[tabName].type === 'stok') {
+                    if (tabConfig[tabName]?.type.startsWith('promo')) {
+                        docs.sort((a, b) => (parseInt((a.id.match(/\d+$/) || ['0'])[0], 10) || 0) - (parseInt((b.id.match(/\d+$/) || ['0'])[0], 10) || 0));
+                    } else if (tabConfig[tabName]?.type === 'stok') {
                         docs.sort((a, b) => a.item.localeCompare(b.item));
                     }
-
                     localData[tabName] = docs;
-
-                    if (tabName === activeTab) {
-                        render();
-                    }
+                    if (tabName === activeTab) render();
                     if(!localData.stokBaru || !localData.stokLoyal) showLoader(); else hideLoader();
                 }, error => {
                     console.error("Error fetching data: ", error);
@@ -168,13 +164,15 @@
 
             function render() {
                 const config = tabConfig[activeTab];
+                if (!config) return;
                 tableTitle.textContent = `Data ${config.title}`;
-                if (!localData[activeTab]) { showLoader(); return; }
+                if (config.type !== 'promo-offline' && !localData[activeTab]) { showLoader(); return; }
 
                 switch (config.type) {
-                    case 'promo-kd': renderPromoTable(false); renderPromoForm(false); break;
-                    case 'promo-hadiah': renderPromoTable(true); renderPromoForm(true); break;
-                    case 'promo-simple': renderPromoTableSimple(); renderPromoFormSimple(); break; // PERUBAHAN: Kasus baru
+                    case 'promo-kd': renderPromoTable(false); renderPromoForm(); break;
+                    case 'promo-hadiah': renderPromoTable(true); renderPromoForm(); break;
+                    case 'promo-simple': renderPromoTableSimple(); renderPromoForm(); break;
+                    case 'promo-offline': renderOfflineTable(); renderOfflineForm(); break;
                     case 'stok': renderStockTable(); renderStockForm(); break;
                 }
             }
@@ -184,69 +182,37 @@
                 let headers = ['NO', 'ITEM', 'NAMA', 'NO WA'];
                 if (withHadiah) headers.push('HADIAH', 'TIPE');
                 headers.push('PROMO KELUAR', 'CHECK', 'KLAIM', 'CHECK', 'AKSI');
-
-                let tableHTML = `<table class="w-full text-sm text-left text-gray-300">
-                    <thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>
-                        ${headers.map(h => `<th class="px-4 py-3 ${['CHECK', 'AKSI', 'NO'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}
-                    </tr></thead><tbody>`;
-                
-                if (data.length === 0) {
-                    tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8 text-gray-500">Belum ada data.</td></tr>`;
-                } else {
+                let tableHTML = `<table class="w-full text-sm text-left text-gray-300"><thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>${headers.map(h => `<th class="px-4 py-3 ${['NO', 'CHECK', 'AKSI'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}</tr></thead><tbody>`;
+                if (data.length === 0) { tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8">Belum ada data.</td></tr>`; }
+                else {
                     data.forEach((item, index) => {
-                        let rowContent = `
-                            <td class="px-4 py-2 text-center font-medium">${index + 1}</td>
-                            <td class="px-4 py-2 font-medium">${item.id}</td>
-                            <td class="px-4 py-2"><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent w-full"></td>
-                            <td class="px-4 py-2"><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent w-full"></td>`;
-                        
+                        let rowContent = `<td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.id}</td><td><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent"></td><td><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent"></td>`;
                         if (withHadiah) {
                             const stokList = (item.tipe === 'LOYAL' ? (localData.stokLoyal || []) : (localData.stokBaru || []));
-                            const hadiahOptions = stokList.map(stokItem => `<option value="${stokItem.item}" ${stokItem.item === item.hadiah ? 'selected' : ''}>${stokItem.item}</option>`).join('');
-                            rowContent += `
-                                <td class="px-4 py-2"><select data-field="hadiah"><option value="">-- Pilih --</option>${hadiahOptions}</select></td>
-                                <td class="px-4 py-2"><select data-field="tipe">
-                                    <option value="BARU" ${item.tipe === 'BARU' ? 'selected' : ''}>BARU</option>
-                                    <option value="LOYAL" ${item.tipe === 'LOYAL' ? 'selected' : ''}>LOYAL</option>
-                                </select></td>`;
+                            const hadiahOptions = stokList.map(s => `<option value="${s.item}" ${s.item === item.hadiah ? 'selected' : ''}>${s.item}</option>`).join('');
+                            rowContent += `<td><select data-field="hadiah"><option value="">-- Pilih --</option>${hadiahOptions}</select></td><td><select data-field="tipe"><option value="BARU" ${item.tipe === 'BARU' ? 'selected' : ''}>BARU</option><option value="LOYAL" ${item.tipe === 'LOYAL' ? 'selected' : ''}>LOYAL</option></select></td>`;
                         }
-
-                        rowContent += `
-                            <td class="px-4 py-2 timestamp">${formatTimestamp(item.promoTimestamp)}</td>
-                            <td class="px-4 py-2 text-center"><input type="checkbox" data-field="promoChecked" ${item.promoChecked ? 'checked' : ''} class="w-5 h-5"></td>
-                            <td class="px-4 py-2 timestamp">${formatTimestamp(item.klaimTimestamp)}</td>
-                            <td class="px-4 py-2 text-center"><input type="checkbox" data-field="klaimChecked" ${item.klaimChecked ? 'checked' : ''} class="w-5 h-5"></td>
-                            <td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 hover:bg-red-700 p-2 rounded-lg text-xs">Hapus</button></td>`;
-                        
-                        tableHTML += `<tr class="bg-gray-800 border-b border-gray-700" data-doc-id="${item.docId}">${rowContent}</tr>`;
+                        rowContent += `<td class="px-4 py-2 timestamp">${formatTimestamp(item.promoTimestamp)}</td><td class="px-4 py-2 text-center"><input type="checkbox" data-field="promoChecked" ${item.promoChecked ? 'checked' : ''}></td><td class="px-4 py-2 timestamp">${formatTimestamp(item.klaimTimestamp)}</td><td class="px-4 py-2 text-center"><input type="checkbox" data-field="klaimChecked" ${item.klaimChecked ? 'checked' : ''}></td><td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 p-2 rounded-lg text-xs">Hapus</button></td>`;
+                        tableHTML += `<tr class="border-b border-gray-700" data-doc-id="${item.docId}">${rowContent}</tr>`;
                     });
                 }
                 tableHTML += `</tbody></table>`;
                 tableContainer.innerHTML = tableHTML;
             }
-            
-            // PERUBAHAN: Fungsi baru untuk tabel '6 FREE 1'
+
             function renderPromoTableSimple() {
                 const data = localData[activeTab] || [];
-                let headers = ['NO', 'ITEM', 'NAMA', 'NO WA', 'CHECK', 'AKSI'];
-
-                let tableHTML = `<table class="w-full text-sm text-left text-gray-300">
-                    <thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>
-                        ${headers.map(h => `<th class="px-4 py-3 ${['CHECK', 'AKSI', 'NO'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}
-                    </tr></thead><tbody>`;
-                
-                if (data.length === 0) {
-                    tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8 text-gray-500">Belum ada data.</td></tr>`;
-                } else {
+                const headers = ['NO', 'ITEM', 'NAMA', 'NO WA', 'CHECK', 'AKSI'];
+                let tableHTML = `<table class="w-full text-sm text-left text-gray-300"><thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>${headers.map(h => `<th class="px-4 py-3 ${['NO', 'CHECK', 'AKSI'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}</tr></thead><tbody>`;
+                if (data.length === 0) { tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8">Belum ada data.</td></tr>`; }
+                else {
                     data.forEach((item, index) => {
-                        let rowContent = `
-                            <td class="px-4 py-2 text-center font-medium">${index + 1}</td>
-                            <td class="px-4 py-2 font-medium">${item.id}</td>
-                            <td class="px-4 py-2"><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent w-full"></td>
-                            <td class="px-4 py-2"><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent w-full"></td>
-                            <td class="px-4 py-2 text-center"><input type="checkbox" data-field="promoChecked" ${item.promoChecked ? 'checked' : ''} class="w-5 h-5"></td>
-                            <td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 hover:bg-red-700 p-2 rounded-lg text-xs">Hapus</button></td>`;
-                        tableHTML += `<tr class="bg-gray-800 border-b border-gray-700" data-doc-id="${item.docId}">${rowContent}</tr>`;
+                        tableHTML += `<tr class="border-b border-gray-700" data-doc-id="${item.docId}">
+                            <td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.id}</td>
+                            <td><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent"></td>
+                            <td><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent"></td>
+                            <td class="px-4 py-2 text-center"><input type="checkbox" data-field="promoChecked" ${item.promoChecked ? 'checked' : ''}></td>
+                            <td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 p-2 rounded-lg text-xs">Hapus</button></td></tr>`;
                     });
                 }
                 tableHTML += `</tbody></table>`;
@@ -255,65 +221,69 @@
 
             function renderStockTable() {
                 const data = localData[activeTab] || [];
-                let tableHTML = `<table class="w-full text-sm text-left text-gray-300">
-                    <thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>
-                        <th class="px-4 py-3 text-center">NO</th><th class="px-4 py-3">ITEM</th><th class="px-4 py-3">STOK AWAL</th>
-                        <th class="px-4 py-3">STOK MASUK</th><th class="px-4 py-3">STOK KELUAR</th>
-                        <th class="px-4 py-3">STOK TERSEDIA</th><th class="px-4 py-3 text-center">AKSI</th>
-                    </tr></thead><tbody>`;
-                if (data.length === 0) {
-                    tableHTML += `<tr><td colspan="7" class="text-center py-8 text-gray-500">Belum ada data.</td></tr>`;
-                } else {
+                const headers = ['NO', 'ITEM', 'STOK AWAL', 'STOK MASUK', 'STOK KELUAR', 'STOK TERSEDIA', 'AKSI'];
+                let tableHTML = `<table class="w-full text-sm text-left text-gray-300"><thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>${headers.map(h => `<th class="px-4 py-3 ${h === 'NO' || h === 'AKSI' ? 'text-center' : ''}">${h}</th>`).join('')}</tr></thead><tbody>`;
+                if (data.length === 0) { tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8">Belum ada data.</td></tr>`; }
+                else {
                     data.forEach((item, index) => {
                         const tersedia = (item.awal || 0) + (item.masuk || 0) - (item.keluar || 0);
-                        tableHTML += `<tr class="bg-gray-800 border-b border-gray-700" data-doc-id="${item.docId}">
-                            <td class="px-4 py-2 text-center font-medium">${index + 1}</td>
-                            <td class="px-4 py-2 font-medium">${item.item}</td>
-                            <td class="px-4 py-2">${item.awal}</td>
-                            <td class="px-4 py-2"><input type="number" data-field="masuk" value="${item.masuk || 0}" class="w-24"></td>
-                            <td class="px-4 py-2"><input type="number" data-field="keluar" value="${item.keluar || 0}" class="w-24"></td>
+                        tableHTML += `<tr class="border-b border-gray-700" data-doc-id="${item.docId}">
+                            <td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.item}</td>
+                            <td class="px-4 py-2">${item.awal}</td><td><input type="number" data-field="masuk" value="${item.masuk || 0}" class="w-24"></td>
+                            <td><input type="number" data-field="keluar" value="${item.keluar || 0}" class="w-24"></td>
                             <td class="px-4 py-2 font-bold">${tersedia}</td>
-                            <td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 hover:bg-red-700 p-2 rounded-lg text-xs">Hapus</button></td>
-                        </tr>`;
+                            <td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 p-2 rounded-lg text-xs">Hapus</button></td></tr>`;
                     });
                 }
                 tableHTML += `</tbody></table>`;
                 tableContainer.innerHTML = tableHTML;
             }
-
-            function getNextPromoId() {
-                const data = localData[activeTab] || [];
-                const config = tabConfig[activeTab];
-                if (!config.prefix) return '';
-                if (data.length === 0) return config.prefix + '1';
-
-                const lastItem = data[data.length - 1];
-                const lastId = lastItem.id;
-                
-                const match = lastId.match(/\d+$/);
-                if (match) {
-                    const number = parseInt(match[0], 10) + 1;
-                    const prefix = lastId.substring(0, lastId.length - match[0].length);
-                    return prefix + number;
-                }
-                return config.prefix + (data.length + 1);
+            
+            function renderOfflineTable() {
+                const dataFirebase = localData.offline || [];
+                const allData = [...legacyOfflineData, ...dataFirebase];
+                let headers = ['NO', 'ITEM', 'NAMA', 'HADIAH', 'TIPE', 'AKSI'];
+                let tableHTML = `<table class="w-full text-sm text-left text-gray-300"><thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>${headers.map(h => `<th class="px-4 py-3 ${['NO', 'AKSI'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}</tr></thead><tbody>`;
+                allData.forEach((item, index) => {
+                    const isLegacy = index < legacyOfflineData.length;
+                    tableHTML += `<tr class="${isLegacy ? 'readonly-row' : ''} border-b border-gray-700" data-doc-id="${item.docId || ''}">
+                        <td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.id}</td>
+                        <td class="px-4 py-2">${isLegacy ? item.name : `<input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent w-full">`}</td>
+                        <td class="px-4 py-2">${item.hadiah}</td><td class="px-4 py-2">${item.tipe}</td>
+                        <td class="px-4 py-2 text-center">${!isLegacy ? `<button class="delete-button bg-red-600 p-2 rounded-lg text-xs">Hapus</button>` : '<span>-</span>'}</td></tr>`;
+                });
+                tableHTML += `</tbody></table>`;
+                tableContainer.innerHTML = tableHTML;
             }
 
-            function renderPromoForm(withHadiah) {
-                const nextItemId = getNextPromoId();
-                 let formHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Data Baru</h3>
-                    <form id="add-form" class="grid grid-cols-1 ${withHadiah ? 'md:grid-cols-6' : 'md:grid-cols-4'} gap-4 items-end">
-                        <input type="text" id="newItem" class="bg-gray-500 p-2 rounded" value="${nextItemId}" readonly>
+            function getNextId() {
+                const config = tabConfig[activeTab];
+                const data = localData[activeTab] || [];
+                let nextNumber = data.length + 1;
+                if (activeTab === 'offline') {
+                    nextNumber += legacyOfflineData.length;
+                }
+                return config.prefix + nextNumber;
+            }
+            
+            function renderPromoForm() {
+                const config = tabConfig[activeTab];
+                let formHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Data Baru</h3><form id="add-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <input type="text" id="newItem" class="bg-gray-500 p-2 rounded" value="${getNextId()}" readonly>
                         <input type="text" id="newName" placeholder="NAMA" class="bg-gray-700 p-2 rounded" required>
                         <input type="text" id="newWa" placeholder="NO WA" class="bg-gray-700 p-2 rounded" required>`;
-                if (withHadiah) {
-                    formHTML += `<select id="newTipe" class="bg-gray-700 p-2 rounded"><option value="BARU">BARU</option><option value="LOYAL">LOYAL</option></select>
-                                <select id="newHadiah" class="bg-gray-700 p-2 rounded"></select>`;
+                if (config.type === 'promo-hadiah') {
+                    formHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Data Baru</h3><form id="add-form" class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                        <input type="text" id="newItem" class="bg-gray-500 p-2 rounded" value="${getNextId()}" readonly>
+                        <input type="text" id="newName" placeholder="NAMA" class="bg-gray-700 p-2 rounded" required>
+                        <input type="text" id="newWa" placeholder="NO WA" class="bg-gray-700 p-2 rounded" required>
+                        <select id="newTipe" class="bg-gray-700 p-2 rounded"><option value="BARU">BARU</option><option value="LOYAL">LOYAL</option></select>
+                        <select id="newHadiah" class="bg-gray-700 p-2 rounded"></select>`;
                 }
                 formHTML += `<button type="submit" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-4 rounded">Tambah</button></form>`;
                 formContainer.innerHTML = formHTML;
 
-                if (withHadiah) {
+                if (config.type === 'promo-hadiah') {
                     const tipeSelect = document.getElementById('newTipe');
                     const hadiahSelect = document.getElementById('newHadiah');
                     const updateHadiahOptions = () => {
@@ -321,109 +291,101 @@
                         hadiahSelect.innerHTML = stokList.map(i => `<option value="${i.item}">${i.item}</option>`).join('');
                     };
                     tipeSelect.addEventListener('change', updateHadiahOptions);
-                    if(localData.stokBaru || localData.stokLoyal) updateHadiahOptions();
+                    if (localData.stokBaru || localData.stokLoyal) updateHadiahOptions();
                 }
             }
-            
-            // PERUBAHAN: Fungsi baru untuk form '6 FREE 1'
-            function renderPromoFormSimple() {
-                const nextItemId = getNextPromoId();
-                let formHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Data Baru</h3>
-                    <form id="add-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+
+            function renderOfflineForm() {
+                const nextItemId = getNextId();
+                let formHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Data Baru</h3><form id="add-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                         <input type="text" id="newItem" class="bg-gray-500 p-2 rounded" value="${nextItemId}" readonly>
                         <input type="text" id="newName" placeholder="NAMA" class="bg-gray-700 p-2 rounded" required>
-                        <input type="text" id="newWa" placeholder="NO WA" class="bg-gray-700 p-2 rounded" required>
-                        <button type="submit" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-4 rounded">Tambah</button>
-                    </form>`;
+                        <select id="newTipe" class="bg-gray-700 p-2 rounded"><option value="BARU">BARU</option><option value="LOYAL">LOYAL</option></select>
+                        <select id="newHadiah" class="bg-gray-700 p-2 rounded"></select>
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-4 rounded">Tambah & Kurangi Stok</button></form>`;
                 formContainer.innerHTML = formHTML;
+                const tipeSelect = document.getElementById('newTipe');
+                const hadiahSelect = document.getElementById('newHadiah');
+                const updateHadiahOptions = () => {
+                    const stokList = tipeSelect.value === 'LOYAL' ? (localData.stokLoyal || []) : (localData.stokBaru || []);
+                    hadiahSelect.innerHTML = stokList.map(i => `<option value="${i.item}">${i.item}</option>`).join('');
+                };
+                tipeSelect.addEventListener('change', updateHadiahOptions);
+                if (localData.stokBaru || localData.stokLoyal) updateHadiahOptions();
             }
 
             function renderStockForm() {
-                 formContainer.innerHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Item Stok Baru</h3>
-                    <form id="add-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <input type="text" id="newItemName" placeholder="Nama Item Baru" class="bg-gray-700 p-2 rounded" required>
-                        <input type="number" id="newStokAwal" placeholder="Stok Awal" class="bg-gray-700 p-2 rounded" required>
-                        <button type="submit" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-4 rounded">Tambah</button>
-                    </form>`;
+                formContainer.innerHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Item Stok Baru</h3><form id="add-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <input type="text" id="newItemName" placeholder="Nama Item" class="bg-gray-700 p-2 rounded" required>
+                    <input type="number" id="newStokAwal" placeholder="Stok Awal" class="bg-gray-700 p-2 rounded" required>
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-4 rounded">Tambah</button></form>`;
             }
 
-            loginForm.addEventListener('submit', e => {
-                e.preventDefault();
-                auth.signInWithEmailAndPassword(username.value, password.value)
-                    .catch(error => {
-                        document.getElementById('login-error').textContent = "Email atau password salah.";
-                        document.getElementById('login-error').classList.remove('hidden');
-                    });
-            });
-            logoutButton.addEventListener('click', () => auth.signOut());
-            tabContainer.addEventListener('click', e => {
-                if (e.target.matches('.tab-button')) {
-                    activeTab = e.target.dataset.tab;
-                    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                    e.target.classList.add('active');
-                    render();
+            async function updateStok(itemName, tipe, amount) {
+                if (!itemName || !tipe) return;
+                const stokCollection = tipe === 'LOYAL' ? 'stokLoyal' : 'stokBaru';
+                const q = db.collection(stokCollection).where("item", "==", itemName);
+                const querySnapshot = await q.get();
+                if (!querySnapshot.empty) {
+                    const doc = querySnapshot.docs[0];
+                    const newKeluar = (doc.data().keluar || 0) + amount;
+                    await doc.ref.update({ keluar: newKeluar });
                 }
-            });
+            }
+
+            loginForm.addEventListener('submit', e => { e.preventDefault(); auth.signInWithEmailAndPassword(username.value, password.value).catch(err => { loginError.textContent = "Email atau password salah."; loginError.classList.remove('hidden'); }); });
+            logoutButton.addEventListener('click', () => auth.signOut());
+            tabContainer.addEventListener('click', e => { if (e.target.matches('.tab-button')) { activeTab = e.target.dataset.tab; document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); render(); } });
+            
             formContainer.addEventListener('submit', async e => {
                 e.preventDefault();
                 const config = tabConfig[activeTab];
                 try {
-                    // PERUBAHAN: Penanganan untuk data '6 FREE 1'
-                    if (config.type === 'promo-simple') {
-                        const newItemId = document.getElementById('newItem').value;
-                        const newData = { 
-                            id: newItemId, 
-                            name: document.getElementById('newName').value, 
-                            wa: document.getElementById('newWa').value, 
-                            promoTimestamp: null, 
-                            promoChecked: false
-                        };
-                        await db.collection(activeTab).add(newData);
+                    if (config.type === 'promo-offline') {
+                        const newItem = { id: document.getElementById('newItem').value, name: document.getElementById('newName').value, tipe: document.getElementById('newTipe').value, hadiah: document.getElementById('newHadiah').value };
+                        if (!newItem.hadiah) { alert("Pilih hadiah."); return; }
+                        await db.collection(activeTab).add(newItem);
+                        await updateStok(newItem.hadiah, newItem.tipe, 1);
                     } else if (config.type.startsWith('promo')) {
-                        const newItemId = document.getElementById('newItem').value;
-                        const newData = { id: newItemId, name: document.getElementById('newName').value, wa: document.getElementById('newWa').value, promoTimestamp: null, promoChecked: false, klaimTimestamp: null, klaimChecked: false };
-                        if (config.type === 'promo-hadiah') {
-                            newData.hadiah = document.getElementById('newHadiah').value || null;
-                            newData.tipe = document.getElementById('newTipe').value;
-                        }
-                        await db.collection(activeTab).add(newData);
-                    } else {
-                        const newItemName = document.getElementById('newItemName').value;
-                        const newStokAwal = parseInt(document.getElementById('newStokAwal').value);
-                        await db.collection(activeTab).add({ item: newItemName, awal: newStokAwal, masuk: 0, keluar: 0 });
+                        const newItem = { id: document.getElementById('newItem').value, name: document.getElementById('newName').value, wa: document.getElementById('newWa').value, promoTimestamp: null, promoChecked: false, klaimTimestamp: null, klaimChecked: false };
+                        if (config.type === 'promo-hadiah') { newItem.hadiah = document.getElementById('newHadiah').value || null; newItem.tipe = document.getElementById('newTipe').value; }
+                        await db.collection(activeTab).add(newItem);
+                    } else if (config.type === 'stok') {
+                        await db.collection(activeTab).add({ item: document.getElementById('newItemName').value, awal: parseInt(document.getElementById('newStokAwal').value) || 0, masuk: 0, keluar: 0 });
                     }
                     e.target.reset();
-                } catch (error) { console.error("Error adding doc: ", error); alert("Gagal menambah data."); }
+                } catch (error) { console.error("Error adding doc:", error); alert("Gagal menambah data."); }
             });
             
             tableContainer.addEventListener('change', async e => {
-                 const target = e.target;
-                 const docId = target.closest('tr').dataset.docId;
-                 if (!docId) return;
-                 const field = target.dataset.field;
-                 let value = target.type === 'checkbox' ? target.checked : (target.type === 'number' ? parseInt(target.value) || 0 : target.value);
-                 
-                 try {
+                const target = e.target;
+                const docId = target.closest('tr').dataset.docId;
+                if (!docId) return;
+                const field = target.dataset.field;
+                let value = target.type === 'checkbox' ? target.checked : (target.type === 'number' ? parseInt(target.value) || 0 : target.value);
+                try {
                     let updateData = { [field]: value };
-                    if(target.type === 'checkbox'){
+                    if (target.type === 'checkbox' && (field === 'promoChecked' || field === 'klaimChecked')) {
                         const tsField = field === 'promoChecked' ? 'promoTimestamp' : 'klaimTimestamp';
-                        // Pastikan field timestamp ada sebelum mencoba mengupdate
-                        if(tsField) {
-                           updateData[tsField] = value ? firebase.firestore.FieldValue.serverTimestamp() : null;
-                        }
+                        updateData[tsField] = value ? firebase.firestore.FieldValue.serverTimestamp() : null;
                     }
                     await db.collection(activeTab).doc(docId).update(updateData);
-                 } catch (error) { console.error("Error updating doc: ", error); alert("Gagal memperbarui data."); }
+                } catch (error) { console.error("Error updating doc:", error); alert("Gagal memperbarui data."); }
             });
 
-            tableContainer.addEventListener('click', e => {
-                const target = e.target.closest('button');
-                if (target && target.classList.contains('delete-button')) {
+            tableContainer.addEventListener('click', async e => {
+                const target = e.target.closest('.delete-button');
+                if (target) {
                     const docId = target.closest('tr').dataset.docId;
-                    if (confirm('Anda yakin ingin menghapus item ini?')) {
-                        db.collection(activeTab).doc(docId).delete().catch(error => {
-                             console.error("Error removing doc: ", error); alert("Gagal menghapus data.");
-                        });
+                    if (!docId) return;
+                    const itemToDelete = localData[activeTab].find(item => item.docId === docId);
+                    if (itemToDelete && confirm('Anda yakin ingin menghapus item ini?')) {
+                        try {
+                            await db.collection(activeTab).doc(docId).delete();
+                            if (activeTab === 'offline') {
+                                await updateStok(itemToDelete.hadiah, itemToDelete.tipe, -1);
+                            }
+                        } catch(error) { console.error("Error removing doc:", error); alert("Gagal menghapus data."); }
                     }
                 }
             });
