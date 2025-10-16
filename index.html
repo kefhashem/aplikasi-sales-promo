@@ -93,8 +93,8 @@
                 'kd10': { title: 'KD_10', type: 'promo-kd', prefix: 'KD10' },
                 'kd15': { title: 'KD_15', type: 'promo-kd', prefix: 'KD15' },
                 'kd20': { title: 'KD_20', type: 'promo-kd', prefix: 'KD20' },
-                'free': { title: '6 FREE 1', type: 'promo-hadiah', prefix: 'FR' },
-                'offline': { title: 'OFFLINE', type: 'promo-hadiah', prefix: 'KDO' }, // PERBAIKAN: Prefix diubah ke KDO
+                'free': { title: '6 FREE 1', type: 'promo-simple', prefix: 'FR' }, // PERUBAHAN: Tipe diubah
+                'offline': { title: 'OFFLINE', type: 'promo-hadiah', prefix: 'KDO' },
                 'stokBaru': { title: 'STOK HADIAH BARU', type: 'stok' },
                 'stokLoyal': { title: 'STOK HADIAH LOYAL', type: 'stok' }
             };
@@ -144,7 +144,6 @@
                 listeners[tabName] = query.onSnapshot(snapshot => {
                     let docs = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
                     
-                    // PERBAIKAN: Mengurutkan data secara numerik setelah diambil dari database
                     if (tabConfig[tabName] && tabConfig[tabName].type.startsWith('promo')) {
                         docs.sort((a, b) => {
                             const numA = parseInt((a.id.match(/\d+$/) || ['0'])[0], 10);
@@ -175,6 +174,7 @@
                 switch (config.type) {
                     case 'promo-kd': renderPromoTable(false); renderPromoForm(false); break;
                     case 'promo-hadiah': renderPromoTable(true); renderPromoForm(true); break;
+                    case 'promo-simple': renderPromoTableSimple(); renderPromoFormSimple(); break; // PERUBAHAN: Kasus baru
                     case 'stok': renderStockTable(); renderStockForm(); break;
                 }
             }
@@ -218,6 +218,34 @@
                             <td class="px-4 py-2 text-center"><input type="checkbox" data-field="klaimChecked" ${item.klaimChecked ? 'checked' : ''} class="w-5 h-5"></td>
                             <td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 hover:bg-red-700 p-2 rounded-lg text-xs">Hapus</button></td>`;
                         
+                        tableHTML += `<tr class="bg-gray-800 border-b border-gray-700" data-doc-id="${item.docId}">${rowContent}</tr>`;
+                    });
+                }
+                tableHTML += `</tbody></table>`;
+                tableContainer.innerHTML = tableHTML;
+            }
+            
+            // PERUBAHAN: Fungsi baru untuk tabel '6 FREE 1'
+            function renderPromoTableSimple() {
+                const data = localData[activeTab] || [];
+                let headers = ['NO', 'ITEM', 'NAMA', 'NO WA', 'CHECK', 'AKSI'];
+
+                let tableHTML = `<table class="w-full text-sm text-left text-gray-300">
+                    <thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>
+                        ${headers.map(h => `<th class="px-4 py-3 ${['CHECK', 'AKSI', 'NO'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}
+                    </tr></thead><tbody>`;
+                
+                if (data.length === 0) {
+                    tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8 text-gray-500">Belum ada data.</td></tr>`;
+                } else {
+                    data.forEach((item, index) => {
+                        let rowContent = `
+                            <td class="px-4 py-2 text-center font-medium">${index + 1}</td>
+                            <td class="px-4 py-2 font-medium">${item.id}</td>
+                            <td class="px-4 py-2"><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent w-full"></td>
+                            <td class="px-4 py-2"><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent w-full"></td>
+                            <td class="px-4 py-2 text-center"><input type="checkbox" data-field="promoChecked" ${item.promoChecked ? 'checked' : ''} class="w-5 h-5"></td>
+                            <td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 hover:bg-red-700 p-2 rounded-lg text-xs">Hapus</button></td>`;
                         tableHTML += `<tr class="bg-gray-800 border-b border-gray-700" data-doc-id="${item.docId}">${rowContent}</tr>`;
                     });
                 }
@@ -296,6 +324,19 @@
                     if(localData.stokBaru || localData.stokLoyal) updateHadiahOptions();
                 }
             }
+            
+            // PERUBAHAN: Fungsi baru untuk form '6 FREE 1'
+            function renderPromoFormSimple() {
+                const nextItemId = getNextPromoId();
+                let formHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Data Baru</h3>
+                    <form id="add-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <input type="text" id="newItem" class="bg-gray-500 p-2 rounded" value="${nextItemId}" readonly>
+                        <input type="text" id="newName" placeholder="NAMA" class="bg-gray-700 p-2 rounded" required>
+                        <input type="text" id="newWa" placeholder="NO WA" class="bg-gray-700 p-2 rounded" required>
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-4 rounded">Tambah</button>
+                    </form>`;
+                formContainer.innerHTML = formHTML;
+            }
 
             function renderStockForm() {
                  formContainer.innerHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Item Stok Baru</h3>
@@ -327,7 +368,18 @@
                 e.preventDefault();
                 const config = tabConfig[activeTab];
                 try {
-                    if (config.type.startsWith('promo')) {
+                    // PERUBAHAN: Penanganan untuk data '6 FREE 1'
+                    if (config.type === 'promo-simple') {
+                        const newItemId = document.getElementById('newItem').value;
+                        const newData = { 
+                            id: newItemId, 
+                            name: document.getElementById('newName').value, 
+                            wa: document.getElementById('newWa').value, 
+                            promoTimestamp: null, 
+                            promoChecked: false
+                        };
+                        await db.collection(activeTab).add(newData);
+                    } else if (config.type.startsWith('promo')) {
                         const newItemId = document.getElementById('newItem').value;
                         const newData = { id: newItemId, name: document.getElementById('newName').value, wa: document.getElementById('newWa').value, promoTimestamp: null, promoChecked: false, klaimTimestamp: null, klaimChecked: false };
                         if (config.type === 'promo-hadiah') {
@@ -355,7 +407,10 @@
                     let updateData = { [field]: value };
                     if(target.type === 'checkbox'){
                         const tsField = field === 'promoChecked' ? 'promoTimestamp' : 'klaimTimestamp';
-                        updateData[tsField] = value ? firebase.firestore.FieldValue.serverTimestamp() : null;
+                        // Pastikan field timestamp ada sebelum mencoba mengupdate
+                        if(tsField) {
+                           updateData[tsField] = value ? firebase.firestore.FieldValue.serverTimestamp() : null;
+                        }
                     }
                     await db.collection(activeTab).doc(docId).update(updateData);
                  } catch (error) { console.error("Error updating doc: ", error); alert("Gagal memperbarui data."); }
