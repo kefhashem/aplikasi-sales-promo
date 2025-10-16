@@ -69,15 +69,14 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <script>
-        // KUNCI FIREBASE ANDA SUDAH TERPASANG DI SINI
+        // LANGKAH PENTING: Ganti dengan kunci Firebase Anda sendiri
         const firebaseConfig = {
-            apiKey: "AIzaSyAF8eA2mPosZJMn-eW-binsEjHFawoE9u0",
-            authDomain: "aplikasi-apresiasi-sales.firebaseapp.com",
-            projectId: "aplikasi-apresiasi-sales",
-            storageBucket: "aplikasi-apresiasi-sales.firebasestorage.app",
-            messagingSenderId: "575335509809",
-            appId: "1:575335509809:web:13e23de2aedf6ee6964a10",
-            measurementId: "G-WG6P1PN9VB"
+            apiKey: "PASTE_API_KEY_ANDA_DI_SINI",
+            authDomain: "PASTE_AUTH_DOMAIN_ANDA_DI_SINI",
+            projectId: "PASTE_PROJECT_ID_ANDA_DI_SINI",
+            storageBucket: "PASTE_STORAGE_BUCKET_ANDA_DI_SINI",
+            messagingSenderId: "PASTE_SENDER_ID_ANDA_DI_SINI",
+            appId: "PASTE_APP_ID_ANDA_DI_SINI"
         };
 
         firebase.initializeApp(firebaseConfig);
@@ -90,11 +89,11 @@
             let listeners = {}; 
 
             const tabConfig = {
-                'kd10': { title: 'KD_10', type: 'promo-kd' },
-                'kd15': { title: 'KD_15', type: 'promo-kd' },
-                'kd20': { title: 'KD_20', type: 'promo-kd' },
-                'free': { title: '6 FREE 1', type: 'promo-hadiah' },
-                'offline': { title: 'OFFLINE', type: 'promo-hadiah' },
+                'kd10': { title: 'KD_10', type: 'promo-kd', prefix: 'KD10' },
+                'kd15': { title: 'KD_15', type: 'promo-kd', prefix: 'KD15' },
+                'kd20': { title: 'KD_20', type: 'promo-kd', prefix: 'KD20' },
+                'free': { title: '6 FREE 1', type: 'promo-hadiah', prefix: 'FR' },
+                'offline': { title: 'OFFLINE', type: 'promo-hadiah', prefix: 'OF' },
                 'stokBaru': { title: 'STOK HADIAH BARU', type: 'stok' },
                 'stokLoyal': { title: 'STOK HADIAH LOYAL', type: 'stok' }
             };
@@ -167,7 +166,7 @@
             
             function renderPromoTable(withHadiah) {
                 const data = localData[activeTab] || [];
-                let headers = ['ITEM', 'NAMA', 'NO WA'];
+                let headers = ['NO', 'ITEM', 'NAMA', 'NO WA'];
                 if (withHadiah) headers.push('HADIAH', 'TIPE');
                 headers.push('PROMO KELUAR', 'CHECK', 'KLAIM', 'CHECK', 'AKSI');
 
@@ -179,8 +178,9 @@
                 if (data.length === 0) {
                     tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8 text-gray-500">Belum ada data.</td></tr>`;
                 } else {
-                    data.forEach(item => {
+                    data.forEach((item, index) => {
                         let rowContent = `
+                            <td class="px-4 py-2 font-medium">${index + 1}</td>
                             <td class="px-4 py-2 font-medium">${item.id}</td>
                             <td class="px-4 py-2"><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent w-full"></td>
                             <td class="px-4 py-2"><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent w-full"></td>`;
@@ -214,16 +214,17 @@
                 const data = localData[activeTab] || [];
                 let tableHTML = `<table class="w-full text-sm text-left text-gray-300">
                     <thead class="text-xs text-gray-400 uppercase bg-gray-700"><tr>
-                        <th class="px-4 py-3">ITEM</th><th class="px-4 py-3">STOK AWAL</th>
+                        <th class="px-4 py-3">NO</th><th class="px-4 py-3">ITEM</th><th class="px-4 py-3">STOK AWAL</th>
                         <th class="px-4 py-3">STOK MASUK</th><th class="px-4 py-3">STOK KELUAR</th>
                         <th class="px-4 py-3">STOK TERSEDIA</th><th class="px-4 py-3 text-center">AKSI</th>
                     </tr></thead><tbody>`;
                 if (data.length === 0) {
-                    tableHTML += `<tr><td colspan="6" class="text-center py-8 text-gray-500">Belum ada data.</td></tr>`;
+                    tableHTML += `<tr><td colspan="7" class="text-center py-8 text-gray-500">Belum ada data.</td></tr>`;
                 } else {
-                    data.forEach(item => {
+                    data.forEach((item, index) => {
                         const tersedia = (item.awal || 0) + (item.masuk || 0) - (item.keluar || 0);
                         tableHTML += `<tr class="bg-gray-800 border-b border-gray-700" data-doc-id="${item.docId}">
+                            <td class="px-4 py-2 font-medium">${index + 1}</td>
                             <td class="px-4 py-2 font-medium">${item.item}</td>
                             <td class="px-4 py-2">${item.awal}</td>
                             <td class="px-4 py-2"><input type="number" data-field="masuk" value="${item.masuk || 0}" class="w-24"></td>
@@ -237,10 +238,42 @@
                 tableContainer.innerHTML = tableHTML;
             }
 
+            function getNextPromoId() {
+                const data = localData[activeTab] || [];
+                const config = tabConfig[activeTab];
+                if (!config.prefix) return '';
+
+                if (data.length === 0) {
+                    // Penanganan khusus untuk KD
+                    if (config.prefix.startsWith('KD')) return config.prefix + '01';
+                    return config.prefix + '1';
+                }
+
+                const lastItem = data[data.length - 1];
+                const lastId = lastItem.id;
+                
+                // Ekstrak angka dari akhir ID
+                const match = lastId.match(/\d+$/);
+                if (match) {
+                    const number = parseInt(match[0], 10);
+                    const nextNumber = number + 1;
+                    const prefix = lastId.substring(0, lastId.length - match[0].length);
+                    // Pertahankan padding nol jika ada
+                    if (match[0].startsWith('0')) {
+                        return prefix + String(nextNumber).padStart(match[0].length, '0');
+                    }
+                    return prefix + nextNumber;
+                }
+                
+                // Fallback jika format ID tidak terduga
+                return config.prefix + (data.length + 1);
+            }
+
             function renderPromoForm(withHadiah) {
+                const nextItemId = getNextPromoId();
                  let formHTML = `<h3 class="text-lg font-semibold mb-4">Tambah Data Baru</h3>
                     <form id="add-form" class="grid grid-cols-1 ${withHadiah ? 'md:grid-cols-6' : 'md:grid-cols-4'} gap-4 items-end">
-                        <input type="text" id="newItem" placeholder="ITEM" class="bg-gray-700 p-2 rounded" required>
+                        <input type="text" id="newItem" placeholder="ITEM" class="bg-gray-500 p-2 rounded" value="${nextItemId}" readonly>
                         <input type="text" id="newName" placeholder="NAMA" class="bg-gray-700 p-2 rounded" required>
                         <input type="text" id="newWa" placeholder="NO WA" class="bg-gray-700 p-2 rounded" required>`;
                 if (withHadiah) {
@@ -271,6 +304,7 @@
                     </form>`;
             }
 
+            // --- Event Listeners ---
             loginForm.addEventListener('submit', e => {
                 e.preventDefault();
                 auth.signInWithEmailAndPassword(username.value, password.value)
@@ -323,7 +357,10 @@
                         updateData[tsField] = value ? firebase.firestore.FieldValue.serverTimestamp() : null;
                     }
                     await db.collection(activeTab).doc(docId).update(updateData);
-                 } catch (error) { console.error("Error updating doc: ", error); alert("Gagal memperbarui data."); }
+                 } catch (error) { 
+                     console.error("Error updating doc: ", error); 
+                     alert("Gagal memperbarui data. Coba refresh halaman."); 
+                 }
             });
 
             tableContainer.addEventListener('click', e => {
