@@ -94,7 +94,7 @@
                 'kd15': { title: 'KD_15', type: 'promo-kd', prefix: 'KD15' },
                 'kd20': { title: 'KD_20', type: 'promo-kd', prefix: 'KD20' },
                 'free': { title: '6 FREE 1', type: 'promo-hadiah', prefix: 'FR' },
-                'offline': { title: 'OFFLINE', type: 'promo-hadiah', prefix: 'OF' },
+                'offline': { title: 'OFFLINE', type: 'promo-hadiah', prefix: 'KDO' }, // PERBAIKAN: Prefix diubah ke KDO
                 'stokBaru': { title: 'STOK HADIAH BARU', type: 'stok' },
                 'stokLoyal': { title: 'STOK HADIAH LOYAL', type: 'stok' }
             };
@@ -139,10 +139,24 @@
             function setupRealtimeListener(tabName) {
                 if (listeners[tabName]) listeners[tabName](); 
 
-                const query = tabName.startsWith('stok') ? db.collection(tabName).orderBy('item') : db.collection(tabName).orderBy('id');
+                const query = db.collection(tabName);
                 
                 listeners[tabName] = query.onSnapshot(snapshot => {
-                    localData[tabName] = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+                    let docs = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+                    
+                    // PERBAIKAN: Mengurutkan data secara numerik setelah diambil dari database
+                    if (tabConfig[tabName] && tabConfig[tabName].type.startsWith('promo')) {
+                        docs.sort((a, b) => {
+                            const numA = parseInt((a.id.match(/\d+$/) || ['0'])[0], 10);
+                            const numB = parseInt((b.id.match(/\d+$/) || ['0'])[0], 10);
+                            return numA - numB;
+                        });
+                    } else if (tabConfig[tabName] && tabConfig[tabName].type === 'stok') {
+                        docs.sort((a, b) => a.item.localeCompare(b.item));
+                    }
+
+                    localData[tabName] = docs;
+
                     if (tabName === activeTab) {
                         render();
                     }
@@ -243,7 +257,7 @@
                 const data = localData[activeTab] || [];
                 const config = tabConfig[activeTab];
                 if (!config.prefix) return '';
-                if (data.length === 0) return config.prefix + '001';
+                if (data.length === 0) return config.prefix + '1';
 
                 const lastItem = data[data.length - 1];
                 const lastId = lastItem.id;
@@ -252,7 +266,7 @@
                 if (match) {
                     const number = parseInt(match[0], 10) + 1;
                     const prefix = lastId.substring(0, lastId.length - match[0].length);
-                    return prefix + String(number).padStart(match[0].length, '0');
+                    return prefix + number;
                 }
                 return config.prefix + (data.length + 1);
             }
