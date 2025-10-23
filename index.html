@@ -9,10 +9,24 @@
         body { font-family: 'Inter', sans-serif; }
         .timestamp { font-size: 0.75rem; color: #9ca3af; }
         .tab-button.active { background-color: #3b82f6; color: white; }
+        /* Mengubah gaya input agar terlihat seperti bagian dari sel tabel */
         td input, td select {
             background-color: #4b5563; border: 1px solid #6b7280;
             border-radius: 0.375rem; padding: 0.25rem 0.5rem;
             width: 100%; font-size: 0.875rem;
+            /* Tambahan untuk membuat input ID transparan */
+            background-color: transparent; 
+            border: none;
+            padding: 0;
+        }
+        td input[data-field="id"] {
+            font-weight: 500;
+            color: #60a5fa; /* Warna biru untuk ID */
+            text-decoration: underline; /* Menandakan bisa diedit */
+            cursor: text;
+            background-color: #374151; /* Warna latar belakang sedikit berbeda saat aktif */
+            padding: 0.25rem 0.5rem;
+            border: 1px solid #4b5563;
         }
         .loader {
             border: 4px solid #f3f3f3; border-top: 4px solid #3498db;
@@ -24,6 +38,8 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .readonly-row { background-color: #374151 !important; color: #9ca3af; }
         .readonly-row input, .readonly-row select, .readonly-row button { pointer-events: none; opacity: 0.7; }
+        /* Style untuk baris duplikat */
+        .duplicate-row { background-color: #450a0a !important; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -113,8 +129,9 @@
             ];
 
             const tabConfig = {
+                // PERBAIKAN: Mengganti prefix 'FR' menjadi 'KD' untuk tab 'free'
                 'kd10': { title: 'KD_10', type: 'promo-kd', prefix: 'KD10' }, 'kd15': { title: 'KD_15', type: 'promo-kd', prefix: 'KD15' },
-                'kd20': { title: 'KD_20', type: 'promo-kd', prefix: 'KD20' }, 'free': { title: '6 FREE 1', type: 'promo-simple', prefix: 'FR' },
+                'kd20': { title: 'KD_20', type: 'promo-kd', prefix: 'KD20' }, 'free': { title: '6 FREE 1', type: 'promo-simple', prefix: 'KD' }, // Diganti menjadi 'KD'
                 'offline': { title: 'OFFLINE', type: 'promo-offline', prefix: 'KDO' }, 'stokBaru': { title: 'STOK HADIAH BARU', type: 'stok' },
                 'stokLoyal': { title: 'STOK HADIAH LOYAL', type: 'stok' }
             };
@@ -157,6 +174,7 @@
                 if (listeners[tabName]) listeners[tabName]();
                 listeners[tabName] = db.collection(tabName).onSnapshot(snapshot => {
                     let docs = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
+                    // Pengurutan sudah benar: berdasarkan angka di akhir ID item
                     if (tabConfig[tabName]?.type.startsWith('promo')) {
                         docs.sort((a, b) => (parseInt((a.id.match(/\d+$/) || ['0'])[0], 10) || 0) - (parseInt((b.id.match(/\d+$/) || ['0'])[0], 10) || 0));
                     } else if (tabConfig[tabName]?.type === 'stok') {
@@ -191,6 +209,11 @@
                 if (searchTerm) {
                     data = data.filter(item => (item.name && item.name.toLowerCase().includes(searchTerm)) || (item.id && item.id.toLowerCase().includes(searchTerm)));
                 }
+
+                // Deteksi ID duplikat untuk penandaan visual
+                const idCounts = {};
+                data.forEach(item => { idCounts[item.id] = (idCounts[item.id] || 0) + 1; });
+
                 let headers = ['NO', 'ITEM', 'NAMA', 'NO WA'];
                 if (withHadiah) headers.push('HADIAH', 'TIPE');
                 headers.push('PROMO KELUAR', 'CHECK', 'KLAIM', 'CHECK', 'AKSI');
@@ -198,14 +221,20 @@
                 if (data.length === 0) { tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8">Tidak ada data ditemukan.</td></tr>`; }
                 else {
                     data.forEach((item, index) => {
-                        let rowContent = `<td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.id}</td><td><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent"></td><td><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent"></td>`;
+                        const isDuplicate = idCounts[item.id] > 1;
+                        const rowClass = isDuplicate ? 'duplicate-row' : '';
+                        
+                        let rowContent = `<td class="px-4 py-2 text-center">${index + 1}</td>
+                            <td class="px-4 py-2"><input type="text" data-field="id" value="${item.id}" class="w-full text-blue-300 font-medium"> ${isDuplicate ? `<span class="text-xs text-yellow-300 ml-2">(DUPLIKAT)</span>` : ''}</td>
+                            <td><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent"></td>
+                            <td><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent"></td>`;
                         if (withHadiah) {
                             const stokList = (item.tipe === 'LOYAL' ? (localData.stokLoyal || []) : (localData.stokBaru || []));
                             const hadiahOptions = stokList.map(s => `<option value="${s.item}" ${s.item === item.hadiah ? 'selected' : ''}>${s.item}</option>`).join('');
                             rowContent += `<td><select data-field="hadiah"><option value="">-- Pilih --</option>${hadiahOptions}</select></td><td><select data-field="tipe"><option value="BARU" ${item.tipe === 'BARU' ? 'selected' : ''}>BARU</option><option value="LOYAL" ${item.tipe === 'LOYAL' ? 'selected' : ''}>LOYAL</option></select></td>`;
                         }
                         rowContent += `<td class="px-4 py-2 timestamp">${formatTimestamp(item.promoTimestamp)}</td><td class="px-4 py-2 text-center"><input type="checkbox" data-field="promoChecked" ${item.promoChecked ? 'checked' : ''}></td><td class="px-4 py-2 timestamp">${formatTimestamp(item.klaimTimestamp)}</td><td class="px-4 py-2 text-center"><input type="checkbox" data-field="klaimChecked" ${item.klaimChecked ? 'checked' : ''}></td><td class="px-4 py-2 text-center"><button class="delete-button bg-red-600 p-2 rounded-lg text-xs">Hapus</button></td>`;
-                        tableHTML += `<tr class="border-b border-gray-700" data-doc-id="${item.docId}">${rowContent}</tr>`;
+                        tableHTML += `<tr class="border-b border-gray-700 ${rowClass}" data-doc-id="${item.docId}">${rowContent}</tr>`;
                     });
                 }
                 tableHTML += `</tbody></table>`;
@@ -217,13 +246,22 @@
                 if (searchTerm) {
                     data = data.filter(item => (item.name && item.name.toLowerCase().includes(searchTerm)) || (item.id && item.id.toLowerCase().includes(searchTerm)));
                 }
+
+                // Deteksi ID duplikat untuk penandaan visual
+                const idCounts = {};
+                data.forEach(item => { idCounts[item.id] = (idCounts[item.id] || 0) + 1; });
+                
                 const headers = ['NO', 'ITEM', 'NAMA', 'NO WA', 'CHECK', 'AKSI'];
                 let tableHTML = `<table class="w-full text-sm text-left text-gray-300"><thead class="text-xs text-gray-400 uppercase bg-gray-700 sticky top-0"><tr>${headers.map(h => `<th class="px-4 py-3 ${['NO', 'CHECK', 'AKSI'].includes(h) ? 'text-center' : ''}">${h}</th>`).join('')}</tr></thead><tbody>`;
                 if (data.length === 0) { tableHTML += `<tr><td colspan="${headers.length}" class="text-center py-8">Tidak ada data ditemukan.</td></tr>`; }
                 else {
                     data.forEach((item, index) => {
-                        tableHTML += `<tr class="border-b border-gray-700" data-doc-id="${item.docId}">
-                            <td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.id}</td>
+                        const isDuplicate = idCounts[item.id] > 1;
+                        const rowClass = isDuplicate ? 'duplicate-row' : '';
+
+                        tableHTML += `<tr class="border-b border-gray-700 ${rowClass}" data-doc-id="${item.docId}">
+                            <td class="px-4 py-2 text-center">${index + 1}</td>
+                            <td class="px-4 py-2"><input type="text" data-field="id" value="${item.id}" class="w-full text-blue-300 font-medium"> ${isDuplicate ? `<span class="text-xs text-yellow-300 ml-2">(DUPLIKAT)</span>` : ''}</td>
                             <td><input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent"></td>
                             <td><input type="text" data-field="wa" value="${item.wa || ''}" class="bg-transparent"></td>
                             <td class="px-4 py-2 text-center"><input type="checkbox" data-field="promoChecked" ${item.promoChecked ? 'checked' : ''}></td>
@@ -245,6 +283,7 @@
                 else {
                     data.forEach((item, index) => {
                         const tersedia = (item.awal || 0) - (item.keluar || 0);
+                        // Kolom ITEM di stok tidak diizinkan diedit karena menjadi kunci stok
                         tableHTML += `<tr class="border-b border-gray-700" data-doc-id="${item.docId}">
                             <td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.item}</td>
                             <td class="px-4 py-2">${item.awal}</td>
@@ -268,7 +307,8 @@
                 allData.forEach((item, index) => {
                     const isLegacy = !item.docId;
                     tableHTML += `<tr class="${isLegacy ? 'readonly-row' : ''} border-b border-gray-700" data-doc-id="${item.docId || ''}">
-                        <td class="px-4 py-2 text-center">${index + 1}</td><td class="px-4 py-2">${item.id}</td>
+                        <td class="px-4 py-2 text-center">${index + 1}</td>
+                        <td class="px-4 py-2">${isLegacy ? item.id : `<input type="text" data-field="id" value="${item.id}" class="w-full text-blue-300 font-medium">`}</td>
                         <td class="px-4 py-2">${isLegacy ? item.name : `<input type="text" data-field="name" value="${item.name || ''}" class="bg-transparent w-full">`}</td>
                         <td class="px-4 py-2">${item.hadiah}</td><td class="px-4 py-2">${item.tipe}</td>
                         <td class="px-4 py-2 text-center">${!isLegacy ? `<button class="delete-button bg-red-600 p-2 rounded-lg text-xs">Hapus</button>` : '<span>-</span>'}</td></tr>`;
@@ -277,14 +317,28 @@
                 tableContainer.innerHTML = tableHTML;
             }
 
+            // Fungsi untuk menghasilkan ID berikutnya (sudah benar)
             function getNextId() {
                 const config = tabConfig[activeTab];
                 const data = localData[activeTab] || [];
-                let nextNumber = data.length + 1;
+                let maxNum = 0;
+                
+                data.forEach(item => {
+                    const num = parseInt((item.id.match(/\d+$/) || ['0'])[0], 10) || 0;
+                    if (num > maxNum) maxNum = num;
+                });
+                
                 if (activeTab === 'offline') {
-                    nextNumber += legacyOfflineData.length;
+                    legacyOfflineData.forEach(item => {
+                        const num = parseInt((item.id.match(/\d+$/) || ['0'])[0], 10) || 0;
+                        if (num > maxNum) maxNum = num;
+                    });
                 }
-                return config.prefix + nextNumber;
+                
+                const nextNumber = maxNum + 1;
+                // Ambil hanya bagian alfabet dari prefix (misal: 'KD' dari 'KD20', atau 'KD' dari 'KD')
+                const basePrefix = config.prefix.replace(/\d+$/, ''); 
+                return basePrefix + nextNumber;
             }
             
             function renderPromoForm() {
@@ -386,6 +440,8 @@
                         await db.collection(activeTab).add({ item: document.getElementById('newItemName').value, awal: parseInt(document.getElementById('newStokAwal').value) || 0, keluar: 0 });
                     }
                     e.target.reset();
+                    // Render ulang untuk mengambil ID baru untuk form
+                    render(); 
                 } catch (error) { console.error("Error adding doc:", error); alert("Gagal menambah data."); }
             });
             
@@ -395,6 +451,17 @@
                 if (!docId) return;
                 const field = target.dataset.field;
                 let value = target.type === 'checkbox' ? target.checked : (target.type === 'number' ? parseInt(target.value) || 0 : target.value);
+                
+                // Cek jika kolom ID diubah
+                if (field === 'id') {
+                    if (!value || value.trim() === '') {
+                        alert("ID Item tidak boleh kosong!");
+                        // Render ulang untuk mengembalikan nilai sebelumnya (atau nilai di Firebase)
+                        render(); 
+                        return;
+                    }
+                }
+
                 try {
                     let updateData = { [field]: value };
                     if (target.type === 'checkbox' && (field === 'promoChecked' || field === 'klaimChecked')) {
@@ -402,6 +469,11 @@
                         updateData[tsField] = value ? firebase.firestore.FieldValue.serverTimestamp() : null;
                     }
                     await db.collection(activeTab).doc(docId).update(updateData);
+                    
+                    // Setelah ID diperbarui, render ulang untuk memastikan sorting dan getNextId() diperbarui
+                    if (field === 'id') {
+                        render();
+                    }
                 } catch (error) { console.error("Error updating doc:", error); alert("Gagal memperbarui data."); }
             });
 
@@ -417,6 +489,8 @@
                             if (activeTab === 'offline') {
                                 await updateStok(itemToDelete.hadiah, itemToDelete.tipe, -1);
                             }
+                            // Setelah hapus, render ulang untuk ID baru
+                            render();
                         } catch(error) { console.error("Error removing doc:", error); alert("Gagal menghapus data."); }
                     }
                 }
@@ -425,4 +499,3 @@
     </script>
 </body>
 </html>
-
